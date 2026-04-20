@@ -111,6 +111,22 @@ def get_ranked_results(db, **filters) -> list[dict]:
         best_signal["all_timeframes"] = list(set(
             s["timeframe"] for s in ticker_sigs
         ))
+        # Flatten trade_setup fields for frontend ease
+        metadata = best_signal.get("metadata", {})
+        if isinstance(metadata, str):
+            import json
+            try: metadata = json.loads(metadata)
+            except: metadata = {}
+            
+        trade_setup = metadata.get("trade_setup", {}) if isinstance(metadata, dict) else {}
+        
+        # Priority mapping to top-level
+        best_signal["entry"] = trade_setup.get("entry")
+        best_signal["stop_loss"] = trade_setup.get("stop_loss")
+        best_signal["target_1"] = trade_setup.get("target_1")
+        best_signal["target_2"] = trade_setup.get("target_2")
+        best_signal["risk_reward_1"] = trade_setup.get("risk_reward_1")
+
         ranked.append(best_signal)
 
     # Sort by confidence score

@@ -8,7 +8,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from backend.config import DB_PATH
+from backend.config import DB_PATH, MIN_LIQUIDITY_VOLUME, MIN_LIQUIDITY_AVG_VOLUME
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,29 @@ class StockDatabase:
             CREATE INDEX IF NOT EXISTS idx_accum_dist ON accum_dist(ticker_id, date);
         """)
         conn.commit()
+
+        # ── Migrations ──
+
+        # 1. Deduplicate signals before applying UNIQUE index (Fix IntegrityError)
+        conn.execute("""
+            DELETE FROM signals
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM signals
+                GROUP BY symbol, timeframe, signal_type, detected_at
+            )
+        """)
+        conn.commit()
+
+        # 2. Create UNIQUE index for signals upsert
+        try:
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_upsert 
+                ON signals(symbol, timeframe, signal_type, detected_at)
+            """)
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Could not create unique index on signals: {e}")
 
         # Run migrations for existing databases
         try:
@@ -257,12 +280,21 @@ class StockDatabase:
     def store_signal(self, ticker_id: int, symbol: str, signal: dict):
         """Store a single detected signal."""
         conn = self._connect()
-        metadata = {
-            k: v for k, v in signal.items()
-            if k not in ("type", "ticker", "timeframe", "date", "confidence_score", "bar_index")
-        }
+        
+        # 1. Start with existing metadata if present
+        metadata = signal.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        else:
+            metadata = metadata.copy() # Avoid mutating original
+            
+        # 2. Add other non-core fields to metadata (e.g., indicator, divergence_strength)
+        core_fields = ("type", "ticker", "timeframe", "date", "confidence_score", "bar_index", "metadata")
+        for k, v in signal.items():
+            if k not in core_fields:
+                metadata[k] = v
 
-        # Convert non-serializable types
+        # 3. Convert non-serializable types (datetime, numpy items)
         clean_meta = {}
         for k, v in metadata.items():
             if hasattr(v, "isoformat"):
@@ -274,7 +306,7 @@ class StockDatabase:
 
         date_str = str(signal.get("date", datetime.now().isoformat()))
         conn.execute("""
-            INSERT INTO signals
+            INSERT OR REPLACE INTO signals
             (ticker_id, symbol, timeframe, signal_type, detected_at, confidence_score, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
@@ -305,6 +337,7 @@ class StockDatabase:
         min_confidence: float = 0.0,
         limit: int = 200,
         offset: int = 0,
+        max_age_days: int = 7,
     ) -> list[dict]:
         """
         Fetch active screening results with optional filters.
@@ -316,6 +349,9 @@ class StockDatabase:
         # FIXED: conn sekarang didefinisikan dengan benar sebelum dipakai
         conn = self._connect()
 
+        # Signal Age Filter: Only show 7 latest days of signals
+        max_age_days = 7
+
         query = """
             SELECT s.*, t.name as ticker_name, t.sector,
                    (SELECT o.close FROM ohlcv o
@@ -324,11 +360,12 @@ class StockDatabase:
             FROM signals s
             JOIN tickers t ON t.id = s.ticker_id
             WHERE s.is_active = 1
+            AND julianday('now') - julianday(detected_at) <= ?
             AND s.confidence_score >= ?
-            AND t.volume > 1000000
-            AND t.avg_volume > 1000000
+            AND t.volume >= ?
+            AND t.avg_volume >= ?
         """
-        params: list = [min_confidence]
+        params: list = [max_age_days, min_confidence, MIN_LIQUIDITY_VOLUME, MIN_LIQUIDITY_AVG_VOLUME]
 
         if signal_type:
             query += " AND s.signal_type = ?"
@@ -364,18 +401,18 @@ class StockDatabase:
             SELECT COUNT(*) FROM signals s
             JOIN tickers t ON t.id = s.ticker_id
             WHERE s.is_active = 1 AND s.confidence_score >= ?
-            AND t.volume > 1000000 AND t.avg_volume > 1000000
-        """, (min_confidence,)).fetchone()[0]
+            AND t.volume >= ? AND t.avg_volume >= ?
+        """, (min_confidence, MIN_LIQUIDITY_VOLUME, MIN_LIQUIDITY_AVG_VOLUME)).fetchone()[0]
 
         by_type = conn.execute("""
             SELECT s.signal_type, COUNT(*) as cnt
             FROM signals s
             JOIN tickers t ON t.id = s.ticker_id
             WHERE s.is_active = 1 AND s.confidence_score >= ?
-            AND t.volume > 1000000 AND t.avg_volume > 1000000
+            AND t.volume >= ? AND t.avg_volume >= ?
             GROUP BY s.signal_type
             ORDER BY cnt DESC
-        """, (min_confidence,)).fetchall()
+        """, (min_confidence, MIN_LIQUIDITY_VOLUME, MIN_LIQUIDITY_AVG_VOLUME)).fetchall()
 
         top_stocks = conn.execute("""
             SELECT s.symbol, MAX(s.confidence_score) as max_score,
@@ -384,17 +421,18 @@ class StockDatabase:
             FROM signals s
             JOIN tickers t ON t.id = s.ticker_id
             WHERE s.is_active = 1 AND s.confidence_score >= ?
-            AND t.volume > 1000000 AND t.avg_volume > 1000000
+            AND t.volume >= ? AND t.avg_volume >= ?
             GROUP BY s.symbol
             ORDER BY max_score DESC
             LIMIT 10
-        """, (min_confidence,)).fetchall()
+        """, (min_confidence, MIN_LIQUIDITY_VOLUME, MIN_LIQUIDITY_AVG_VOLUME)).fetchall()
 
         return {
             "total_signals": total,
             "min_confidence_filter": min_confidence,
             "by_type": {r["signal_type"]: r["cnt"] for r in by_type},
             "top_stocks": [dict(r) for r in top_stocks],
+            "server_time": datetime.now().isoformat()
         }
 
     def get_signals_for_ticker(self, symbol: str) -> list[dict]:

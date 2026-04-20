@@ -141,9 +141,26 @@ def get_all_tickers(category: str = "lq45") -> list[str]:
     elif category == "all_idx":
         # Dynamic: Fetch all active tickers from database
         from backend.storage.database import StockDatabase
+        import json
+        import os
+        
         db = StockDatabase()
         db.initialize()
         tickers_data = db.get_all_tickers()
+        
+        # If DB is under-populated, import from master JSON
+        if len(tickers_data) < 100:
+            json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tickers_master.json")
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        master_list = json.load(f)
+                        for t in master_list:
+                            db.get_or_create_ticker(t["symbol"], t["name"], t["board"])
+                    tickers_data = db.get_all_tickers()
+                except Exception as e:
+                    print(f"Error importing master tickers: {e}")
+        
         db.close()
         return sorted([t["symbol"] for t in tickers_data])
     else:

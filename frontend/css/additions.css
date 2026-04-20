@@ -1,0 +1,490 @@
+/* ── Tambahan CSS untuk trade setup, signal detail, accumulation, dan komponen yang hilang ── */
+
+/* ── Score Pill (tabel screener) ───────────────────────────────── */
+.score-pill {
+    position: relative;
+    width: 100%;
+    max-width: 90px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.score-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(0, 212, 170, 0.3), rgba(0, 184, 255, 0.3));
+    border-radius: 20px;
+    transition: width 0.6s ease;
+}
+
+.score-pill span {
+    position: relative;
+    z-index: 1;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+/* ── TF Badge ───────────────────────────────────────────────────── */
+.tf-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(0, 184, 255, 0.12);
+    color: var(--accent-secondary);
+    letter-spacing: 0.5px;
+}
+
+/* ── Ticker Cell ────────────────────────────────────────────────── */
+.ticker-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ticker-symbol {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.ticker-name {
+    font-size: 11px;
+}
+
+/* ── Reason text ────────────────────────────────────────────────── */
+.reason-text {
+    font-size: 11px;
+    margin-top: 4px;
+    max-width: 240px;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Price cell badges ──────────────────────────────────────────── */
+.price-cell {
+    white-space: nowrap;
+}
+
+.pct-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+.pct-tag.green {
+    background: rgba(0, 212, 170, 0.12);
+    color: var(--accent-primary);
+}
+
+.pct-tag.red {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--accent-red);
+}
+
+/* ── Small icon button ──────────────────────────────────────────── */
+.btn-icon-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: var(--transition-smooth);
+}
+
+.btn-icon-small:hover {
+    background: rgba(0, 212, 170, 0.1);
+    color: var(--accent-primary);
+}
+
+/* ── Signal Detail Card (Algo Analysis panel) ───────────────────── */
+.signal-detail-card {
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    border: 1px solid var(--glass-border);
+}
+
+.sdc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.sdc-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.score-badge {
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.sdc-reason {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border-left: 2px solid var(--accent-primary);
+}
+
+/* ── Trade Setup Grid ───────────────────────────────────────────── */
+.trade-setup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.setup-cell {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.setup-cell.entry {
+    border-color: rgba(0, 184, 255, 0.2);
+    background: rgba(0, 184, 255, 0.05);
+}
+
+.setup-cell.tp1 {
+    border-color: rgba(0, 212, 170, 0.2);
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.setup-cell.tp2 {
+    border-color: rgba(0, 212, 170, 0.15);
+    background: rgba(0, 212, 170, 0.03);
+}
+
+.setup-cell.sl {
+    border-color: rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.setup-cell.rr {
+    border-color: rgba(245, 158, 11, 0.2);
+    background: rgba(245, 158, 11, 0.05);
+    grid-column: 1/-1;
+}
+
+.setup-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
+.setup-price {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+}
+
+.setup-pct {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.setup-pct.green {
+    color: var(--accent-primary);
+}
+
+.setup-pct.red {
+    color: var(--accent-red);
+}
+
+.setup-missing {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+/* ── Signal detail footer ───────────────────────────────────────── */
+.sdc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.multi-tf-badge {
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(0, 212, 170, 0.1);
+    color: var(--accent-primary);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* ── Accumulation Panel ─────────────────────────────────────────── */
+.accum-phase-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.accum-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.accum-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.metric-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+}
+
+.metric-val {
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+}
+
+.accum-trend {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.trend-dots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* ── Text utilities ─────────────────────────────────────────────── */
+.text-green {
+    color: var(--accent-primary);
+}
+
+.text-red {
+    color: var(--accent-red);
+}
+
+.text-accent {
+    color: var(--accent-secondary);
+}
+
+.text-dim {
+    color: var(--text-dim);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* ── Toast notifications ────────────────────────────────────────── */
+.notification-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: all;
+    transition: opacity 0.4s, transform 0.4s;
+    max-width: 340px;
+}
+
+.toast.success {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.toast.error {
+    border-left: 3px solid var(--accent-red);
+}
+
+.toast.warning {
+    border-left: 3px solid var(--accent-amber);
+}
+
+.toast.info {
+    border-left: 3px solid var(--accent-secondary);
+}
+
+.toast.success i {
+    color: var(--accent-primary);
+}
+
+.toast.error i {
+    color: var(--accent-red);
+}
+
+.toast.warning i {
+    color: var(--accent-amber);
+}
+
+.toast.info i {
+    color: var(--accent-secondary);
+}
+
+/* ── Screener Controls ──────────────────────────────────────────── */
+.screener-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    padding: 20px 24px;
+    border-radius: var(--card-radius);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+}
+
+.filter-group label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+}
+
+.filter-group select,
+.filter-group input[type="range"] {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    font-size: 13px;
+}
+
+.filter-actions {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border: 1px solid var(--glass-border);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+/* ── Dashboard grid ─────────────────────────────────────────────── */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+}
+
+.dashboard-table-card {
+    overflow: hidden;
+}
+
+.market-status-card {
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Signal list scrollable ─────────────────────────────────────── */
+.signal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    max-height: calc(100vh - 320px);
+    padding-right: 4px;
+}
+
+.accum-info {
+    overflow-y: auto;
+    max-height: 300px;
+}
+
+/* ── Empty state ────────────────────────────────────────────────── */
+.empty-state {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 24px;
+    font-size: 13px;
+}
+
+/* ── Circle button variant ──────────────────────────────────────── */
+.btn-icon.circle {
+    border-radius: 50%;
+}

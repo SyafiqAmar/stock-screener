@@ -35,17 +35,6 @@ def detect_bullish_divergence(
     Detect Regular Bullish Divergence:
         - Price makes a LOWER LOW
         - Indicator makes a HIGHER LOW
-    Interpretation: bearish momentum is weakening → potential reversal UP.
-
-    Args:
-        df: DataFrame with 'low' price and indicator column.
-        indicator: Column name of the indicator to check against price.
-        lookback: Number of recent bars to analyze.
-        min_distance: Minimum bars between pivot points.
-        max_lag: Maximum bar offset when matching indicator pivots to price pivots.
-
-    Returns:
-        List of signal dicts with pivot coordinates and metadata.
     """
     lookback = lookback or DIVERGENCE_LOOKBACK
     min_distance = min_distance or DIVERGENCE_MIN_PIVOT_DISTANCE
@@ -55,19 +44,16 @@ def detect_bullish_divergence(
     if indicator not in df.columns:
         return []
 
-    # Work with the most recent bars
     window = df.tail(lookback).copy()
     if len(window) < min_distance * 3:
         return []
 
-    # Reset to positional indexing for consistent pivot detection
     price_series = window["low"].reset_index(drop=True)
     ind_series = window[indicator].dropna()
     if len(ind_series) < min_distance * 3:
         return []
     ind_series = ind_series.reset_index(drop=True)
 
-    # Find troughs (local minima)
     price_lows = find_local_minima(price_series, distance=min_distance)
     ind_lows = find_local_minima(ind_series, distance=min_distance)
 
@@ -78,22 +64,18 @@ def detect_bullish_divergence(
     pairs = get_pivot_pairs(price_lows, min_bars_apart=min_distance)
 
     for p1, p2 in pairs:
-        # Check: Price makes LOWER LOW
         if price_series.iloc[p2] >= price_series.iloc[p1]:
             continue
 
-        # Find corresponding indicator troughs
         ind_at_p1 = find_closest_pivot(ind_lows, p1, max_lag=max_lag)
         ind_at_p2 = find_closest_pivot(ind_lows, p2, max_lag=max_lag)
 
         if ind_at_p1 is None or ind_at_p2 is None:
-            # Fallback: use indicator value at exact price pivot positions if available
             if p1 < len(ind_series) and p2 < len(ind_series):
                 ind_val_p1 = ind_series.iloc[p1]
                 ind_val_p2 = ind_series.iloc[p2]
                 if pd.notna(ind_val_p1) and pd.notna(ind_val_p2):
                     if ind_val_p2 > ind_val_p1:
-                        # BULLISH DIVERGENCE: price LL, indicator HL
                         signals.append(_build_signal(
                             signal_type="bullish_divergence",
                             indicator=indicator,
@@ -108,14 +90,11 @@ def detect_bullish_divergence(
                         ))
             continue
 
-        # Check: Indicator makes HIGHER LOW (HL) with significant delta
+        # Kedua baris ini harus ada — assign p1 DAN p2
         ind_val_p1 = ind_series.iloc[ind_at_p1]
         ind_val_p2 = ind_series.iloc[ind_at_p2]
 
-        # Regular Bullish: Price LL, Indicator HL
-        # HL requirement: Ind_P2 > Ind_P1 + threshold
         if pd.notna(ind_val_p1) and pd.notna(ind_val_p2) and ind_val_p2 >= (ind_val_p1 + min_ind_delta):
-            # ✅ BULLISH DIVERGENCE confirmed
             signals.append(_build_signal(
                 signal_type="bullish_divergence",
                 indicator=indicator,
@@ -129,7 +108,6 @@ def detect_bullish_divergence(
                 lookback=lookback,
             ))
 
-    # Only keep the most recent signal per indicator to avoid duplicates
     if len(signals) > 1:
         signals = [max(signals, key=lambda s: s["bar_index"])]
 
@@ -148,17 +126,6 @@ def detect_hidden_bullish_divergence(
     Detect Hidden Bullish Divergence:
         - Price makes a HIGHER LOW (uptrend intact)
         - Indicator makes a LOWER LOW (false weakness signal)
-    Interpretation: uptrend continuation signal.
-
-    Args:
-        df: DataFrame with 'low' price and indicator column.
-        indicator: Column name of the indicator.
-        lookback: Number of recent bars to analyze.
-        min_distance: Minimum bars between pivots.
-        max_lag: Maximum bar offset for matching.
-
-    Returns:
-        List of signal dicts.
     """
     lookback = lookback or DIVERGENCE_LOOKBACK
     min_distance = min_distance or DIVERGENCE_MIN_PIVOT_DISTANCE
@@ -188,11 +155,9 @@ def detect_hidden_bullish_divergence(
     pairs = get_pivot_pairs(price_lows, min_bars_apart=min_distance)
 
     for p1, p2 in pairs:
-        # Check: Price makes HIGHER LOW (uptrend)
         if price_series.iloc[p2] <= price_series.iloc[p1]:
             continue
 
-        # Find corresponding indicator troughs
         ind_at_p1 = find_closest_pivot(ind_lows, p1, max_lag=max_lag)
         ind_at_p2 = find_closest_pivot(ind_lows, p2, max_lag=max_lag)
 
@@ -216,12 +181,11 @@ def detect_hidden_bullish_divergence(
                         ))
             continue
 
+        # FIXED: kedua baris assign ind_val_p1 dan ind_val_p2 harus ada
+        ind_val_p1 = ind_series.iloc[ind_at_p1]   # ← baris ini hilang di versi kamu
         ind_val_p2 = ind_series.iloc[ind_at_p2]
 
-        # Hidden Bullish: Price HL, Indicator LL
-        # LL requirement: Ind_P2 <= Ind_P1 - threshold
         if pd.notna(ind_val_p1) and pd.notna(ind_val_p2) and ind_val_p2 <= (ind_val_p1 - min_ind_delta):
-            # ✅ HIDDEN BULLISH DIVERGENCE confirmed
             signals.append(_build_signal(
                 signal_type="hidden_bullish_divergence",
                 indicator=indicator,
@@ -252,13 +216,10 @@ def _build_signal(
     lookback: int,
 ) -> dict:
     """Build a standardized signal dict."""
-    # Calculate divergence strength (how strong the disagreement is)
     price_delta_pct = abs(price_p2 - price_p1) / price_p1 * 100
     ind_delta_pct = abs(ind_val_p2 - ind_val_p1) / max(abs(ind_val_p1), 0.01) * 100
     divergence_strength = min((price_delta_pct + ind_delta_pct) / 20, 1.0)
 
-    # Map p2 back to original DataFrame position
-    original_bar_index = len(window) - lookback + p2 if lookback else p2
     date_idx = window.index[min(p2, len(window) - 1)] if p2 < len(window) else window.index[-1]
 
     return {

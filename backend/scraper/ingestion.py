@@ -17,6 +17,7 @@ from backend.analysis.divergence import detect_bullish_divergence, detect_hidden
 from backend.analysis.elliott_abc import detect_abc_correction
 from backend.analysis.accumulation import analyze_accumulation_distribution
 from backend.analysis.trade_setup import calculate_trade_setup
+from backend.notifications.telegram_bot import send_telegram_alert, format_signal_alert
 from backend.scoring.confidence import calculate_confidence
 from backend.scoring.ranker import rank_and_store_signals
 from backend.config import (
@@ -62,6 +63,13 @@ def scan_single_ticker(ticker: str, timeframes: list[str] | None = None):
             # Simpan OHLCV
             ticker_id = db.get_or_create_ticker(ticker)
             db.upsert_ohlcv(ticker_id, tf, df)
+
+            # Update ticker volume summary if daily timeframe (for liquidity filtering)
+            if tf == "1d" and len(df) > 0:
+                latest_vol = int(df['volume'].iloc[-1]) if pd.notna(df['volume'].iloc[-1]) else 0
+                # Calculate average volume (last 20 days)
+                avg_vol = int(df['volume'].tail(20).mean()) if len(df) >= 20 else latest_vol
+                db.update_ticker_volume(ticker, latest_vol, avg_vol)
 
             # 2. Hitung indikator
             df_ind = df.copy()
@@ -123,6 +131,14 @@ def scan_single_ticker(ticker: str, timeframes: list[str] | None = None):
                     if "metadata" not in sig:
                         sig["metadata"] = {}
                     sig["metadata"]["trade_setup"] = trade_setup
+                
+                # Send real-time Telegram alert for high-confidence signals (>80%)
+                if sig["confidence_score"] >= 0.8:
+                    try:
+                        alert_msg = format_signal_alert(sig)
+                        send_telegram_alert(alert_msg)
+                    except Exception as e:
+                        logger.error(f"Failed to send Telegram alert: {e}")
 
             # ── FILTER: buang sinyal di bawah threshold sebelum disimpan ──
             before = len(signals_for_tf)

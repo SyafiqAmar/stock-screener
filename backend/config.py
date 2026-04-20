@@ -76,7 +76,7 @@ TIMEFRAME_SCORE_WEIGHTS = {
 
 MULTI_TF_BONUS_MULTIPLIER = 1.5
 
-# ── Confidence Filter ──────────────────────────────────────────────────
+# ── Confidence & Liquidity Filter ──────────────────────────────────────
 # Hanya sinyal dengan score >= nilai ini yang akan masuk screener.
 # 0.5 = probabilitas 50% ke atas.
 # Naikkan ke 0.65 untuk hasil lebih selektif, turunkan ke 0.4 untuk lebih banyak sinyal.
@@ -85,6 +85,11 @@ MIN_CONFIDENCE_THRESHOLD = 0.5
 # Sinyal di bawah threshold ini tidak disimpan ke database sama sekali
 # (hemat storage, bersihkan noise sejak awal)
 MIN_CONFIDENCE_TO_STORE = 0.4
+
+# Batas likuiditas harian agar emiten muncul di dashboard (jumlah lembar saham)
+# 1.000.000 adalah standard untuk IDX saham liquid (LQ45/IDX30)
+MIN_LIQUIDITY_VOLUME = 1000000
+MIN_LIQUIDITY_AVG_VOLUME = 1000000
 
 # ── Server ─────────────────────────────────────────────────────────────
 API_HOST = "0.0.0.0"
