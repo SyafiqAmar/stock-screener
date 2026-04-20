@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Stock Screener IDX | Professional Algo Trading</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>STOCK<span class="accent">SCREENER</span></span>
+                </div>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="#dashboard" class="menu-item active" id="menu-dashboard">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#screener" class="menu-item" id="menu-screener">
+                    <i class="fas fa-filter"></i>
+                    <span>Screener</span>
+                </a>
+                <a href="#analysis" class="menu-item" id="menu-analysis">
+                    <i class="fas fa-microchip"></i>
+                    <span>Algo Analysis</span>
+                </a>
+                <a href="#watchlist" class="menu-item" id="menu-watchlist">
+                    <i class="fas fa-star"></i>
+                    <span>Watchlist</span>
+                </a>
+                <a href="#settings" class="menu-item" id="menu-settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <div class="dot pulse green"></div>
+                    <span>System Live</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="top-header">
+                <div class="search-bar glass">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search ticker (e.g. BBCA.JK)..." id="global-search">
+                </div>
+                <div class="header-actions">
+                    <button class="btn-icon glass" title="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge"></span>
+                    </button>
+                    <button class="btn btn-primary" id="btn-run-scan">
+                        <i class="fas fa-sync-alt"></i> Run Scan
+                    </button>
+                    <div class="profile-pill glass">
+                        <img src="https://ui-avatars.com/api/?name=User&background=00d4aa&color=fff" alt="User">
+                        <span>ThinkPad</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card glass animate-up">
+                        <div class="stat-icon purple"><i class="fas fa-signal"></i></div>
+                        <div class="stat-info">
+                            <h3>Total Signals</h3>
+                            <p class="stat-value" id="stat-total-signals">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card glass animate-up" style="animation-delay: 0.1s;">
+                        <div class="stat-icon green"><i class="fas fa-arrow-trend-up"></i></div>
+                        <div class="stat-info">
+                            <h3>Bullish Div</h3>
+                            <p class="stat-value" id="stat-bullish-div">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card glass animate-up" style="animation-delay: 0.2s;">
+                        <div class="stat-icon amber"><i class="fas fa-wave-square"></i></div>
+                        <div class="stat-info">
+                            <h3>ABC Correction</h3>
+                            <p class="stat-value" id="stat-abc-correction">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card glass animate-up" style="animation-delay: 0.3s;">
+                        <div class="stat-icon blue"><i class="fas fa-boxes-stacked"></i></div>
+                        <div class="stat-info">
+                            <h3>Accumulation</h3>
+                            <p class="stat-value" id="stat-accumulation">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- Top Signals Table -->
+                    <div class="card glass dashboard-table-card animate-up" style="animation-delay: 0.4s;">
+                        <div class="card-header">
+                            <h2>🔥 Top Potential Signals</h2>
+                            <button class="btn-text">View All</button>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="top-signals-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Signal Type</th>
+                                        <th>TF</th>
+                                        <th>Confidence</th>
+                                        <th>Entry</th>
+                                        <th>Target</th>
+                                        <th>SL</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Market Status -->
+                    <div class="card glass market-status-card animate-up" style="animation-delay: 0.5s;">
+                        <div class="card-header">
+                            <h2>⚡ System Activity</h2>
+                        </div>
+                        <div class="activity-feed" id="activity-feed">
+                            <div class="empty-state">No recent activity detected.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screener View -->
+            <div id="view-screener" class="view">
+                <div class="screener-controls glass animate-up">
+                    <div class="filter-group">
+                        <label>Signal Type</label>
+                        <select id="filter-signal-type">
+                            <option value="">All Signals</option>
+                            <option value="bullish_divergence">Bullish Divergence</option>
+                            <option value="hidden_bullish_divergence">Hidden Bullish Div</option>
+                            <option value="abc_correction">ABC Correction</option>
+                            <option value="accumulation">Accumulation Phase</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Timeframe</label>
+                        <select id="filter-timeframe">
+                            <option value="">All TFs</option>
+                            <option value="15m">15 Minutes</option>
+                            <option value="1h">1 Hour</option>
+                            <option value="4h">4 Hours</option>
+                            <option value="1d">Daily</option>
+                            <option value="1wk">Weekly</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Min. Confidence</label>
+                        <input type="range" id="filter-confidence" min="0" max="100" value="0">
+                        <span id="confidence-value">0%</span>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-secondary" id="btn-reset-filters">Reset</button>
+                    </div>
+                </div>
+
+                <div class="card glass screener-table-card animate-up" style="animation-delay: 0.1s;">
+                    <div class="table-container">
+                        <table class="data-table" id="screener-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Ticker</th>
+                                    <th>Name</th>
+                                    <th>Signal Type</th>
+                                    <th>Timeframe</th>
+                                    <th>Score</th>
+                                    <th>Entry</th>
+                                    <th>Target 1</th>
+                                    <th>Target 2</th>
+                                    <th>SL</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis/Chart View -->
+            <div id="view-analysis" class="view">
+                <div class="analysis-layout">
+                    <div class="chart-section card glass animate-up">
+                        <div class="chart-header">
+                            <div class="ticker-info">
+                                <h1 id="chart-ticker-symbol">SELECT A TICKER</h1>
+                                <span id="chart-ticker-name">Detailed Technical Analysis</span>
+                            </div>
+                            <div class="chart-controls">
+                                <div class="tf-selector">
+                                    <button class="tf-btn" data-tf="15m">15m</button>
+                                    <button class="tf-btn" data-tf="1h">1h</button>
+                                    <button class="tf-btn" data-tf="4h">4h</button>
+                                    <button class="tf-btn active" data-tf="1d">1D</button>
+                                    <button class="tf-btn" data-tf="1wk">1W</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="main-chart-container" class="chart-container">
+                            <!-- Lightweight charts -->
+                        </div>
+                        <div id="rsi-chart-container" class="sub-chart-container"></div>
+                        <div id="macd-chart-container" class="sub-chart-container"></div>
+                    </div>
+
+                    <div class="details-section">
+                        <div class="card glass signal-details animate-up" style="animation-delay: 0.1s;">
+                            <div class="card-header">
+                                <h2><i class="fas fa-bolt"></i> Active Signals</h2>
+                            </div>
+                            <div id="ticker-signal-list" class="signal-list">
+                                <div class="empty-state">No signals selected.</div>
+                            </div>
+                        </div>
+                        <div class="card glass accumulation-details animate-up" style="animation-delay: 0.2s;">
+                            <div class="card-header">
+                                <h2><i class="fas fa-boxes-stacked"></i> Accumulation Trend</h2>
+                            </div>
+                            <div id="accumulation-chart" class="accum-info">
+                                <div class="empty-state">Select a ticker to view trend.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="overlay hidden">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p id="loading-text">Processing Market Data...</p>
+        </div>
+    </div>
+
+    <!-- Scan Configuration Modal -->
+    <div id="modal-scan-config" class="overlay hidden">
+        <div class="modal card glass animate-up">
+            <div class="card-header">
+                <h2><i class="fas fa-cog"></i> Scan Configuration</h2>
+                <button class="btn-icon circle glass close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Ticker Category</label>
+                    <select id="scan-category" class="glass">
+                        <option value="lq45">LQ45 (Most Liquid)</option>
+                        <option value="idx30">IDX30</option>
+                        <option value="extended">Extended (Popular)</option>
+                        <option value="all">Mixed (LQ45+IDX30+Ext)</option>
+                        <option value="all_idx">IDX All (700+ Tickers) ⚠️</option>
+                    </select>
+                    <p class="help-text" id="category-warning">Small list (2-5 mins)</p>
+                </div>
+                <div class="form-group">
+                    <label>Select Timeframes</label>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="scan-tf" value="1h"> 1h
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="scan-tf" value="4h"> 4h
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="scan-tf" value="1d" checked> 1D
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="scan-tf" value="1wk"> 1W
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Min. Confidence Score</label>
+                    <input type="range" id="scan-confidence" min="0" max="100" value="50">
+                    <span id="scan-confidence-val">50%</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-start-manual-scan">
+                    <i class="fas fa-play"></i> Start Full Analysis
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/websocket.js"></script>
+    <script src="/static/js/screener.js"></script>
+    <script src="/static/js/chart.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
