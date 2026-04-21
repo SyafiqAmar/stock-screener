@@ -1,93 +1,57 @@
 """
-Chart data API routes.
-Provides OHLCV + indicator data for frontend charting.
+OHLCV and Indicators API for Charting (Asynchronous).
+Used by Lightweight Charts in the frontend.
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from backend.storage.database import StockDatabase
-from backend.storage.cache import cache_get, cache_set
+import pandas as pd
 
 router = APIRouter()
 
-
-@router.get("/{ticker}")
-def get_chart_data(
-    ticker: str,
-    timeframe: str = Query("1d", description="Timeframe: 15m, 1h, 4h, 1d, 1wk"),
-    limit: int = Query(300, ge=50, le=2000),
+@router.get("/ohlcv/{symbol}")
+async def get_chart_ohlcv(
+    symbol: str,
+    timeframe: str = Query("1d", description="15m, 1h, 4h, 1d, 1wk"),
+    limit: int = Query(500, ge=10, le=2000)
 ):
-    """
-    Get OHLCV data for charting a specific ticker.
-    Returns data formatted for TradingView Lightweight Charts.
-    """
-    cache_key = f"chart:{ticker}:{timeframe}:{limit}"
-    cached = cache_get(cache_key)
-    if cached:
-        return cached
-
+    """Fetch OHLCV data for chart (Async)."""
     db = StockDatabase()
-    db.initialize()
-    df = db.get_ohlcv(ticker, timeframe, limit=limit)
-    db.close()
+    try:
+        df = await db.get_ohlcv(symbol, timeframe, limit=limit)
+        if df.empty:
+            return []
+        
+        # Format for Lightweight Charts: list of {time, open, high, low, close}
+        # time should be unix timestamp (seconds)
+        df['time'] = df['date'].astype('int64') // 10**9
+        records = df[['time', 'open', 'high', 'low', 'close', 'volume']].to_dict('records')
+        return records
+    finally:
+        await db.close()
 
-    if df.empty:
-        return {"ticker": ticker, "timeframe": timeframe, "data": [], "count": 0}
-
-    # Format for Lightweight Charts (time as Unix timestamp)
-    candles = []
-    for _, row in df.iterrows():
-        candles.append({
-            "time": int(row["date"].timestamp()) if hasattr(row["date"], "timestamp") else str(row["date"]),
-            "open": round(float(row["open"]), 2),
-            "high": round(float(row["high"]), 2),
-            "low": round(float(row["low"]), 2),
-            "close": round(float(row["close"]), 2),
-            "volume": int(row["volume"]),
-        })
-
-    response = {
-        "ticker": ticker,
-        "timeframe": timeframe,
-        "count": len(candles),
-        "data": candles,
-    }
-
-    cache_set(cache_key, response, ttl=60)
-    return response
-
-
-@router.get("/{ticker}/indicators")
-def get_chart_indicators(
-    ticker: str,
+@router.get("/indicators/{symbol}")
+async def get_chart_indicators(
+    symbol: str, 
     timeframe: str = Query("1d"),
-    limit: int = Query(300, ge=50, le=2000),
+    limit: int = Query(500)
 ):
-    """Get indicator data (RSI, MACD, Stoch, etc.) for chart overlays."""
+    """Fetch indicator data for chart (Async)."""
     db = StockDatabase()
-    db.initialize()
-    df = db.get_indicators(ticker, timeframe, limit=limit)
-    db.close()
-
-    if df.empty:
-        return {"ticker": ticker, "indicators": []}
-
-    indicators = []
-    for _, row in df.iterrows():
-        entry = {
-            "time": int(row["date"].timestamp()) if hasattr(row["date"], "timestamp") else str(row["date"]),
+    try:
+        df = await db.get_indicators(symbol, timeframe, limit=limit)
+        if df.empty:
+            return {}
+        
+        # Convert date to unix timestamp
+        df['time'] = df['date'].astype('int64') // 10**9
+        
+        # Group indicators for easier consumption by frontend
+        indicators = {
+            "rsi": df[['time', 'rsi_14']].rename(columns={'rsi_14': 'value'}).to_dict('records'),
+            "macd": df[['time', 'macd', 'macd_signal', 'macd_hist']].to_dict('records'),
+            "stoch": df[['time', 'stoch_k', 'stoch_d']].to_dict('records'),
+            "labels": df[['time']].to_dict('records')
         }
-        for col in ["rsi_14", "macd", "macd_signal", "macd_hist", "stoch_k", "stoch_d", "obv", "mfi", "adl"]:
-            entry[col] = round(float(row[col]), 4) if row.get(col) is not None and str(row.get(col)) != "nan" else None
-        indicators.append(entry)
-
-    return {"ticker": ticker, "timeframe": timeframe, "indicators": indicators}
-
-
-@router.get("/{ticker}/signals")
-def get_chart_signals(ticker: str):
-    """Get signal overlay data for chart markers (divergence lines, ABC waves)."""
-    db = StockDatabase()
-    db.initialize()
-    signals = db.get_signals_for_ticker(ticker)
-    db.close()
-
-    return {"ticker": ticker, "signals": signals}
+        return indicators
+    finally:
+        await db.close()

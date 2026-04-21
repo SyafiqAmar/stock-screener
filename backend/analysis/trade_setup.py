@@ -94,11 +94,11 @@ def _setup_for_divergence(signal: dict, df: pd.DataFrame) -> dict:
         tp1 = ll_price + (price_range * 0.500)   # 50% retracement
         tp2 = ll_price + (price_range * 0.618)   # 61.8% retracement
 
-        # Pastikan TP selalu DI ATAS entry
-        if tp1 <= entry:
-            tp1 = entry * 1.03   # minimum 3% di atas entry
-        if tp2 <= tp1:
-            tp2 = tp1 * 1.02    # TP2 selalu di atas TP1
+        # Pastikan TP selalu DI ATAS entry dengan gap yang sehat
+        if tp1 <= entry * 1.01:
+            tp1 = entry * 1.05   # Target 1: min +5% dari entry
+        if tp2 <= tp1 * 1.01:
+            tp2 = tp1 * 1.05    # Target 2: min +5% dari Target 1
 
         risk   = entry - sl_price
         reward = tp1 - entry
@@ -190,11 +190,11 @@ def _setup_for_abc(signal: dict, df: pd.DataFrame) -> dict:
 
         tp2 = round(float(pc_price) + (wave_a_len * 0.618), 2)
 
-        # Pastikan TP2 > TP1 > entry
-        if tp2 <= tp1:
-            tp2 = round(tp1 * 1.03, 2)
-        if tp2 <= entry:
-            tp2 = round(tp1 * 1.05, 2)
+        # Pastikan TP2 > TP1 > entry dengan gap sehat
+        if tp1 <= entry * 1.01:
+            tp1 = entry * 1.05
+        if tp2 <= tp1 * 1.01:
+            tp2 = tp1 * 1.05
 
         # ── Risk/Reward ────────────────────────────────────────────────
         risk   = entry - sl

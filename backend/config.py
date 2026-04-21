@@ -16,8 +16,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 PARQUET_DIR.mkdir(parents=True, exist_ok=True)
 CSV_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── Database ───────────────────────────────────────────────────────────
+# ── Database & Cache ──────────────────────────────────────────────────
+# Default to SQLite for local development, but prioritize DATABASE_URL for Postgres/Docker
 DB_PATH = DATA_DIR / "stock_screener.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DB_PATH}")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))
 
 # ── Timeframes ─────────────────────────────────────────────────────────
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1wk"]
@@ -32,7 +36,7 @@ TIMEFRAME_PERIODS = {
 
 # ── Scraper Settings ───────────────────────────────────────────────────
 MAX_CONCURRENT_DOWNLOADS = 5
-DOWNLOAD_DELAY_SECONDS = 0.3
+DOWNLOAD_DELAY_SECONDS = 1.5
 SCRAPE_DAILY_HOUR = 17
 SCRAPE_DAILY_MINUTE = 5
 SCRAPE_INTRADAY_INTERVAL_MINUTES = 15
@@ -92,8 +96,8 @@ MIN_LIQUIDITY_VOLUME = 1000000
 MIN_LIQUIDITY_AVG_VOLUME = 1000000
 
 # ── Server ─────────────────────────────────────────────────────────────
-API_HOST = "0.0.0.0"
-API_PORT = 8000
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
+API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # ── Notifications ──────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -104,5 +108,4 @@ EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 
 # ── Redis ──────────────────────────────────────────────────────────────
-REDIS_URL = os.getenv("REDIS_URL", "")
-CACHE_TTL_SECONDS = 300
+# REDIS_URL and CACHE_TTL_SECONDS are now defined above in the Database & Cache section

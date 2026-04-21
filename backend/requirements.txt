@@ -13,17 +13,20 @@ requests==2.32.3
 pandas==2.2.3
 numpy==2.2.1
 scipy==1.15.0
+openpyxl==3.1.5
 
 # Technical Analysis
-pandas_ta==0.3.14b1
+# (Handled by manual logic in analysis/indicators.py)
 
-# Storage
-aiosqlite==0.20.0
+# Storage (PostgreSQL & Redis)
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+redis==5.0.1
 pyarrow==18.1.0
 
 # Scheduling
 APScheduler==3.10.4
 
-# Notifications (optional)
-# python-telegram-bot==21.9
-# redis==5.2.1
+# Notifications
+python-telegram-bot==21.9
+python-dotenv==1.0.0

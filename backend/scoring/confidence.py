@@ -57,8 +57,8 @@ def calculate_confidence(signal: dict, df: pd.DataFrame, timeframe: str) -> floa
 
     # Accumulation/distribution signals get their own scoring
     if signal_type in ("accumulation", "distribution"):
-        metadata = signal.get("metadata", {})
-        phase_conf = metadata.get("phase_confidence", 0.5)
+        additional_data = signal.get("metadata", {}) or signal.get("additional_data", {})
+        phase_conf = additional_data.get("phase_confidence", 0.5)
         score = 0.3 + (0.7 * phase_conf)  # Base + phase confidence
 
     return round(min(max(score, 0.0), 1.0), 4)
@@ -75,7 +75,7 @@ def _check_volume_confirmation(signal: dict, df: pd.DataFrame) -> float:
 
     try:
         vol_avg = df["volume"].rolling(20).mean()
-        if bar_idx < len(vol_avg) and pd.notna(vol_avg.iloc[bar_idx]):
+        if bar_idx < len(vol_avg) and pd.notna(vol_avg.iloc[bar_idx]) and vol_avg.iloc[bar_idx] > 0:
             ratio = df["volume"].iloc[bar_idx] / vol_avg.iloc[bar_idx]
             if ratio > 1.5:
                 return 1.0  # Strong volume confirmation

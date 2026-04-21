@@ -1,28 +1,31 @@
 """
 Bulk import IDX tickers from Excel file in Downloads folder.
 Filters by listing board: Ekonomi Baru, Pengembangan, Utama.
+(Asynchronous PostgreSQL version)
 """
 import os
 import sys
 import logging
+import asyncio
 from pathlib import Path
 import pandas as pd
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from backend.storage.database import StockDatabase
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 # Config
-EXCEL_PATH = Path(os.path.expanduser("~/Downloads/list-company.xlsx"))
+EXCEL_PATH = Path("/app/data/list-company.xlsx")
 ALLOWED_BOARDS = ["Ekonomi Baru", "Pengembangan", "Utama"]
 
-def run_import():
+async def run_import():
     if not EXCEL_PATH.exists():
         logger.error(f"File not found: {EXCEL_PATH}")
         return
@@ -50,10 +53,9 @@ def run_import():
     logger.info(f"Filtered {total_filtered} tickers from {total_raw} total (Boards: {ALLOWED_BOARDS})")
 
     db = StockDatabase()
-    db.initialize()
+    await db.initialize()
 
-    count_new = 0
-    count_updated = 0
+    count_processed = 0
 
     for idx, row in df_filtered.iterrows():
         symbol = str(row['Kode']).strip().upper()
@@ -61,35 +63,20 @@ def run_import():
             symbol += '.JK'
         
         name = str(row['Nama Perusahaan']).strip()
-        board = str(row['Papan Pencatatan']).strip()
         
-        # Check if exists
-        conn = db._connect()
-        existing = conn.execute("SELECT id FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
-        
-        if existing:
-            # Update existing
-            conn.execute(
-                "UPDATE tickers SET name = ?, board = ?, updated_at = ? WHERE symbol = ?",
-                (name, board, pd.Timestamp.now().isoformat(), symbol)
-            )
-            count_updated += 1
-        else:
-            # Insert new
-            conn.execute(
-                "INSERT INTO tickers (symbol, name, board, updated_at) VALUES (?, ?, ?, ?)",
-                (symbol, name, board, pd.Timestamp.now().isoformat())
-            )
-            count_new += 1
-        
-        if (idx + 1) % 100 == 0:
-            conn.commit()
-            logger.info(f"Processed {idx + 1} tickers...")
+        try:
+            # get_or_create_ticker handles the logic of checking existence and inserting
+            await db.get_or_create_ticker(symbol=symbol, name=name)
+            count_processed += 1
+            
+            if count_processed % 50 == 0:
+                logger.info(f"Processed {count_processed}/{total_filtered} tickers...")
+                
+        except Exception as e:
+            logger.error(f"Error importing {symbol}: {e}")
 
-    conn.commit()
-    db.close()
-    
-    logger.info(f"Import complete! New: {count_new}, Updated: {count_updated}")
+    await db.close()
+    logger.info(f"Import complete! Processed {count_processed} tickers.")
 
 if __name__ == "__main__":
-    run_import()
+    asyncio.run(run_import())

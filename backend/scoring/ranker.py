@@ -4,29 +4,25 @@ Ranks stocks based on aggregate confidence across all signals and timeframes.
 """
 import logging
 from collections import defaultdict
+import json
 
 from backend.config import MULTI_TF_BONUS_MULTIPLIER
 
 logger = logging.getLogger(__name__)
 
 
-def rank_and_store_signals(db, ticker: str, signals: list[dict]):
+async def rank_and_store_signals(db, ticker: str, signals: list[dict]):
     """
     Process, rank, and store all signals for a ticker.
-
-    Steps:
-        1. Group signals by type
-        2. Check for multi-indicator confirmation (same type, different indicators)
-        3. Check for multi-timeframe confirmation (same type, different TFs)
-        4. Apply bonuses and store
+    (Asynchronous version)
     """
     if not signals:
         return
 
-    ticker_id = db.get_or_create_ticker(ticker)
+    ticker_id = await db.get_or_create_ticker(ticker)
 
     # Deactivate old signals for this ticker
-    db.deactivate_old_signals(ticker, days_old=30)
+    await db.deactivate_old_signals(ticker, days_old=30)
 
     # Group by signal_type
     by_type = defaultdict(list)
@@ -54,10 +50,10 @@ def rank_and_store_signals(db, ticker: str, signals: list[dict]):
                     s["multi_indicator_bonus"] = 0.0
 
                 # Recalculate confidence with bonus
-                from backend.scoring.confidence import calculate_confidence
-                # We don't have df here, so just adjust the score
+                # NOTE: We assume confidence score was already calculated, 
+                # but we boost it here for redundancy/agreement.
                 old_score = s.get("confidence_score", 0)
-                bonus = s["multi_indicator_bonus"] * 0.20  # multi_indicator weight
+                bonus = s["multi_indicator_bonus"] * 0.20
                 s["confidence_score"] = min(round(old_score + bonus, 4), 1.0)
 
     # Apply multi-TF bonus
@@ -75,9 +71,9 @@ def rank_and_store_signals(db, ticker: str, signals: list[dict]):
             for s in sigs:
                 s["multi_tf_confirmed"] = False
 
-    # Store all signals
+    # Store all signals asynchronously
     for sig in signals:
-        db.store_signal(ticker_id, ticker, sig)
+        await db.store_signal(ticker_id, ticker, sig)
 
     logger.info(
         f"Stored {len(signals)} signals for {ticker} "
@@ -85,15 +81,12 @@ def rank_and_store_signals(db, ticker: str, signals: list[dict]):
     )
 
 
-def get_ranked_results(db, **filters) -> list[dict]:
+async def get_ranked_results(db, **filters) -> list[dict]:
     """
     Get ranked screening results, sorted by confidence score.
-
-    Adds computed fields:
-        - rank: position in ranking
-        - signal_count: total signals for this ticker
+    (Asynchronous version)
     """
-    signals = db.get_active_signals(**filters)
+    signals = await db.get_active_signals(**filters)
 
     # Group by ticker for aggregation
     by_ticker = defaultdict(list)
@@ -111,21 +104,22 @@ def get_ranked_results(db, **filters) -> list[dict]:
         best_signal["all_timeframes"] = list(set(
             s["timeframe"] for s in ticker_sigs
         ))
-        # Flatten trade_setup fields for frontend ease
-        metadata = best_signal.get("metadata", {})
-        if isinstance(metadata, str):
-            import json
-            try: metadata = json.loads(metadata)
-            except: metadata = {}
-            
-        trade_setup = metadata.get("trade_setup", {}) if isinstance(metadata, dict) else {}
         
-        # Priority mapping to top-level
-        best_signal["entry"] = trade_setup.get("entry")
-        best_signal["stop_loss"] = trade_setup.get("stop_loss")
-        best_signal["target_1"] = trade_setup.get("target_1")
-        best_signal["target_2"] = trade_setup.get("target_2")
-        best_signal["risk_reward_1"] = trade_setup.get("risk_reward_1")
+        # Metadata logic (flattening already mostly handled by DB but for robustness):
+        additional_data = best_signal.get("additional_data", {})
+        if isinstance(additional_data, str):
+            try: additional_data = json.loads(additional_data)
+            except: additional_data = {}
+            
+        trade_setup = additional_data.get("trade_setup", {}) if isinstance(additional_data, dict) else {}
+        
+        # Priority mapping to top-level if not already there
+        if "entry" not in best_signal or best_signal["entry"] is None:
+            best_signal["entry"] = trade_setup.get("entry")
+            best_signal["stop_loss"] = trade_setup.get("stop_loss")
+            best_signal["target_1"] = trade_setup.get("target_1")
+            best_signal["target_2"] = trade_setup.get("target_2")
+            best_signal["risk_reward_1"] = trade_setup.get("risk_reward_1")
 
         ranked.append(best_signal)
 

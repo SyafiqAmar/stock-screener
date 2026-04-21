@@ -1,113 +1,143 @@
 """
-Data source abstraction layer.
-Primary: yfinance for OHLCV data.
+Asynchronous data source abstraction layer.
+Primary: yfinance library for robust OHLVC downloads with session management.
 """
 import logging
 import pandas as pd
+import asyncio
 import yfinance as yf
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-
-def download_ohlcv(ticker: str, timeframe: str, period: str) -> pd.DataFrame | None:
+async def download_ohlcv_async(ticker: str, timeframe: str, period: str) -> pd.DataFrame | None:
     """
-    Download OHLCV data for a single ticker at a specific timeframe.
-
-    Args:
-        ticker: e.g., 'BBCA.JK'
-        timeframe: yfinance interval — '15m', '1h', '4h', '1d', '1wk'
-        period: yfinance period  — '60d', '730d', '2y', '5y'
-
-    Returns:
-        DataFrame with columns [date, open, high, low, close, volume] or None on error.
+    Download OHLCV data asynchronously using yfinance.
+    Uses asyncio.to_thread to prevent blocking the event loop.
     """
+    # Mapping internal timeframes to yfinance intervals
+    interval_map = {
+        "15m": "15m",
+        "1h": "1h",
+        "4h": "1h", # Resample from 1h
+        "1d": "1d",
+        "1wk": "1wk"
+    }
+    
+    interval = interval_map.get(timeframe, "1d")
+    
     try:
-        # yfinance uses 'interval' not 'timeframe'
-        # For 4h, yfinance doesn't have native support — we resample from 1h
-        actual_interval = timeframe
-        actual_period = period
-
-        if timeframe == "4h":
-            actual_interval = "1h"
-            # Need enough 1h data to resample into 4h
-
-        data = yf.download(
-            ticker,
-            period=actual_period,
-            interval=actual_interval,
-            auto_adjust=True,
+        # Wrap the synchronous yfinance call in a thread
+        df = await asyncio.to_thread(
+            yf.download,
+            tickers=ticker,
+            period=period,
+            interval=interval,
             progress=False,
-            timeout=30,
+            auto_adjust=True
         )
-
-        if data is None or data.empty:
+        
+        if df is None or df.empty:
             logger.warning(f"No data returned for {ticker} @ {timeframe}")
             return None
 
-        # Flatten MultiIndex columns if present (yfinance 0.2.x)
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
+        # ── Handle MultiIndex Columns ───────────────────────────────────────
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
 
-        # Rename to lowercase standard
-        data.columns = [c.lower() for c in data.columns]
+        # ── Handle Index (Date/Datetime) ────────────────────────────────────
+        # Reset index to move Date/Datetime from index to column
+        df = df.reset_index()
 
-        # Ensure we have the required columns
-        required = ["open", "high", "low", "close", "volume"]
-        for col in required:
-            if col not in data.columns:
-                logger.warning(f"Missing column '{col}' for {ticker} @ {timeframe}")
-                return None
-
+        # Standardize all column names to lowercase
+        df.columns = [str(c).lower().replace(" ", "_") for c in df.columns]
+        
+        # Identify the date column (it could be 'date', 'datetime', 'index', or something else)
+        date_col = None
+        possible_date_cols = ['date', 'datetime', 'timestamp', 'index']
+        for col in possible_date_cols:
+            if col in df.columns:
+                date_col = col
+                break
+        
+        if date_col:
+            df = df.rename(columns={date_col: 'date'})
+        else:
+            # If still not found, try to find the first column that looks like a datetime
+            for col in df.columns:
+                if pd.api.types.is_datetime64_any_dtype(df[col]):
+                    df = df.rename(columns={col: 'date'})
+                    date_col = 'date'
+                    break
+        
+        if not date_col or 'date' not in df.columns:
+            logger.error(f"Could not identify date column for {ticker}. Columns: {df.columns.tolist()}")
+            return None
+        
+        # Ensure 'date' column is datetime and timezone-naive
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+        
+        # Standardize OHLCV columns
+        # Map common names to standard
+        col_map = {
+            'open': 'open',
+            'high': 'high',
+            'low': 'low',
+            'close': 'close',
+            'adj_close': 'close',
+            'volume': 'volume'
+        }
+        df = df.rename(columns=col_map)
+        
         # Resample to 4h if needed
         if timeframe == "4h":
-            data = _resample_to_4h(data)
+            df = df.set_index('date')
+            df = df.resample('4H').agg({
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum'
+            }).dropna().reset_index()
 
-        # Reset index so 'date' is a column
-        data = data.reset_index()
-        date_col = [c for c in data.columns if "date" in c.lower() or "datetime" in c.lower()]
-        if date_col:
-            data = data.rename(columns={date_col[0]: "date"})
-        elif "index" in data.columns:
-            data = data.rename(columns={"index": "date"})
+        required = ["date", "open", "high", "low", "close", "volume"]
+        
+        # Verify all required columns exist
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            logger.error(f"Missing columns for {ticker}: {missing}. Available: {df.columns.tolist()}")
+            return None
 
-        # Keep only standard columns
-        data = data[["date", "open", "high", "low", "close", "volume"]]
-        data = data.dropna(subset=["close"])
-        data = data.sort_values("date").reset_index(drop=True)
-
-        logger.info(f"Downloaded {len(data)} bars for {ticker} @ {timeframe}")
-        return data
+        # Filter only required columns
+        df = df[required].copy()
+        df = df.sort_values("date").reset_index(drop=True)
+        
+        logger.info(f"Downloaded {len(df)} bars for {ticker} @ {timeframe} (yfinance)")
+        return df
 
     except Exception as e:
-        logger.error(f"Error downloading {ticker} @ {timeframe}: {e}")
+        logger.error(f"yfinance download error for {ticker}: {e}")
         return None
 
-
-def _resample_to_4h(df: pd.DataFrame) -> pd.DataFrame:
-    """Resample 1h OHLCV data to 4h bars."""
-    ohlcv_agg = {
-        "open": "first",
-        "high": "max",
-        "low": "min",
-        "close": "last",
-        "volume": "sum",
-    }
-    resampled = df.resample("4h").agg(ohlcv_agg).dropna()
-    return resampled
-
-
-def get_ticker_info_yf(ticker: str) -> dict:
-    """Fetch additional info for a ticker from Yahoo Finance."""
+async def get_ticker_info_async(ticker: str) -> dict:
+    """
+    Fetch basic info via yfinance library.
+    """
     try:
         t = yf.Ticker(ticker)
-        info = t.info
+        info = await asyncio.to_thread(lambda: t.info)
+        
+        if not info:
+            return {"symbol": ticker, "name": "", "sector": "", "market_cap": 0}
+            
         return {
             "symbol": ticker,
-            "name": info.get("longName", info.get("shortName", "")),
-            "sector": info.get("sector", ""),
+            "name": info.get("longName", info.get("shortName", ticker)),
+            "sector": info.get("sector", "Unknown"),
             "market_cap": info.get("marketCap", 0),
-            "currency": info.get("currency", "IDR"),
+            "volume": info.get("regularMarketVolume", 0),
+            "avg_volume": info.get("averageDailyVolume3Month", 0)
         }
     except Exception as e:
-        logger.error(f"Error fetching info for {ticker}: {e}")
-        return {"symbol": ticker, "name": "", "sector": "", "market_cap": 0}
+        logger.error(f"Error fetching yfinance info for {ticker}: {e}")
+    return {"symbol": ticker, "name": "", "sector": "", "market_cap": 0}

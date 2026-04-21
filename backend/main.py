@@ -1,5 +1,5 @@
 """
-FastAPI main entry point — Stock Screener Server.
+FastAPI main entry point — Stock Screener Server (Async PostgreSQL + Docker).
 Run: python -m backend.main
 """
 import sys
@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 
 # ── App ────────────────────────────────────────────────
 app = FastAPI(
-    title="📊 Stock Screener IDX",
-    description="Local stock screening system for Bullish Divergence, Hidden Bullish Divergence, ABC Correction, and Accumulation/Distribution analysis.",
-    version="1.0.0",
+    title="📊 Stock Screener IDX (Async)",
+    description="Containerized PostgreSQL stack with high-concurrency async analysis.",
+    version="1.1.0",
 )
 
 # CORS
@@ -65,7 +65,6 @@ frontend_path = str(FRONTEND_DIR)
 if os.path.isdir(frontend_path):
     app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
-
 # ── Root → serve frontend ─────────────────────────────
 @app.get("/")
 async def root():
@@ -74,37 +73,31 @@ async def root():
         return FileResponse(str(index_path))
     return {"message": "Stock Screener API is running. Visit /docs for API documentation."}
 
-
 # ── Lifecycle ──────────────────────────────────────────
 @app.on_event("startup")
 async def startup_event():
-    logger.info("🚀 Starting Stock Screener...")
+    logger.info("🚀 Starting Async Stock Screener...")
 
-    # Initialize database
-    db = StockDatabase()
-    db.initialize()
-    db.close()
-    logger.info("✅ Database initialized")
+    # Initialize database (PostgreSQL tables)
+    try:
+        db = StockDatabase()
+        await db.initialize()
+        await db.close()
+        logger.info("✅ Database initialized (PostgreSQL)")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        logger.warning("⚠️ The application will start but database features may be unavailable until resolved.")
 
     # Start scheduler
     start_scheduler()
-    logger.info("✅ Scheduler started")
+    logger.info("✅ Scheduler started (AsyncIOScheduler)")
 
     logger.info(f"🌐 Dashboard: http://localhost:{API_PORT}")
-    logger.info(f"📚 API Docs:  http://localhost:{API_PORT}/docs")
-
 
 @app.on_event("shutdown")
 async def shutdown_event():
     stop_scheduler()
     logger.info("Stock Screener stopped")
-
-
-# ── Backend __init__ ───────────────────────────────────
-# Create __init__.py for backend package if it doesn't exist
-init_path = Path(__file__).parent / "__init__.py"
-if not init_path.exists():
-    init_path.write_text("# Backend package\n")
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.get("/results")
-def get_screener_results(
+async def get_screener_results(
     signal_type: str | None = Query(
         None,
         description="Filter: bullish_divergence, hidden_bullish_divergence, abc_correction, accumulation",
@@ -23,8 +23,6 @@ def get_screener_results(
         description="Filter: 15m, 1h, 4h, 1d, 1wk",
     ),
     min_confidence: float = Query(
-        # CHANGED: default dari 0.0 → MIN_CONFIDENCE_THRESHOLD (0.5)
-        # Screener hanya tampilkan saham dengan probabilitas >= 50%
         default=MIN_CONFIDENCE_THRESHOLD,
         ge=0.0,
         le=1.0,
@@ -35,31 +33,25 @@ def get_screener_results(
 ):
     """
     Get filtered and ranked screening results.
-
-    Hanya mengembalikan saham dengan confidence_score >= min_confidence.
-    Default threshold adalah 0.5 (50%) — bisa dinaikkan via query param.
-
-    Contoh:
-        GET /api/screener/results                    → score >= 0.5 (default)
-        GET /api/screener/results?min_confidence=0.7 → score >= 0.7 (lebih selektif)
-        GET /api/screener/results?min_confidence=0.0 → semua sinyal (debug only)
+    (Asynchronous version)
     """
     cache_key = f"screener:{signal_type}:{timeframe}:{min_confidence}:{limit}:{offset}"
-    cached = cache_get(cache_key)
+    cached = await cache_get(cache_key)
     if cached:
         return cached
 
     db = StockDatabase()
-    db.initialize()
-    results = get_ranked_results(
-        db,
-        signal_type=signal_type,
-        timeframe=timeframe,
-        min_confidence=min_confidence,
-        limit=limit,
-        offset=offset,
-    )
-    db.close()
+    try:
+        results = await get_ranked_results(
+            db,
+            signal_type=signal_type,
+            timeframe=timeframe,
+            min_confidence=min_confidence,
+            limit=limit,
+            offset=offset,
+        )
+    finally:
+        await db.close()
 
     response = {
         "total": len(results),
@@ -71,38 +63,41 @@ def get_screener_results(
         "results": results,
     }
 
-    cache_set(cache_key, response, ttl=120)
+    await cache_set(cache_key, response, ttl=120)
     return response
 
 
 @router.get("/summary")
-def get_screener_summary():
+async def get_screener_summary():
     """
-    Summary statistik sinyal aktif, difilter dengan MIN_CONFIDENCE_THRESHOLD.
-    Menunjukkan breakdown per tipe sinyal dan top 10 saham.
+    Summary statistik sinyal aktif (Asynchronous).
     """
     cache_key = f"screener:summary:{MIN_CONFIDENCE_THRESHOLD}"
-    cached = cache_get(cache_key)
+    cached = await cache_get(cache_key)
     if cached:
         return cached
 
     db = StockDatabase()
-    db.initialize()
-    summary = db.get_signal_summary(min_confidence=MIN_CONFIDENCE_THRESHOLD)
-    db.close()
+    try:
+        # NOTE: initialize is now async if needed, but StockDatabase constructor
+        # already sets up the engine. For safety, we can call it.
+        await db.initialize()
+        summary = await db.get_signal_summary(min_confidence=MIN_CONFIDENCE_THRESHOLD)
+    finally:
+        await db.close()
 
-    cache_set(cache_key, summary, ttl=120)
+    await cache_set(cache_key, summary, ttl=120)
     return summary
 
 
 @router.get("/status")
-def get_status():
+async def get_status():
     """Get current scan status."""
     return get_scan_status()
 
 
 @router.post("/run")
-def trigger_scan(
+async def trigger_scan(
     background_tasks: BackgroundTasks,
     category: str = Query(
         "lq45",
@@ -119,13 +114,17 @@ def trigger_scan(
         description="Hanya simpan sinyal di atas threshold ini",
     ),
 ):
-    """Trigger manual scan di background."""
+    """Trigger manual scan in background."""
     tf_list = [t.strip() for t in timeframes.split(",")]
+    
+    # scheduler.run_manual_scan can remain synchronous or be converted.
+    # We will converted it to async in the next steps.
     background_tasks.add_task(
         run_manual_scan,
         category=category,
         timeframes=tf_list,
     )
+    
     return {
         "status": "started",
         "category": category,

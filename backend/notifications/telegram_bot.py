@@ -1,17 +1,18 @@
 """
-Telegram notification module (optional).
+Telegram notification module (Asynchronous).
 Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars.
 """
 import logging
-import requests
+import aiohttp
+import asyncio
 
 from backend.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 logger = logging.getLogger(__name__)
 
 
-def send_telegram_alert(message: str) -> bool:
-    """Send a message via Telegram bot."""
+async def send_telegram_alert(message: str) -> bool:
+    """Send a message via Telegram bot (Asynchronous)."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.debug("Telegram not configured, skipping alert")
         return False
@@ -23,15 +24,18 @@ def send_telegram_alert(message: str) -> bool:
             "text": message,
             "parse_mode": "HTML",
         }
-        resp = requests.post(url, json=payload, timeout=10)
-        if resp.status_code == 200:
-            logger.info("Telegram alert sent")
-            return True
-        else:
-            logger.warning(f"Telegram error: {resp.status_code} {resp.text}")
-            return False
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=10) as resp:
+                if resp.status == 200:
+                    logger.info("Telegram alert sent (Async)")
+                    return True
+                else:
+                    text = await resp.text()
+                    logger.warning(f"Telegram error: {resp.status} {text}")
+                    return False
     except Exception as e:
-        logger.error(f"Telegram send failed: {e}")
+        logger.error(f"Telegram send failed (Async): {e}")
         return False
 
 
@@ -60,11 +64,45 @@ def format_signal_alert(signal: dict) -> str:
     return msg
 
 
-def send_scan_complete_alert(total_tickers: int, total_signals: int):
+async def send_scan_complete_alert(total_tickers: int, total_signals: int):
     """Send summary alert when a scan completes."""
     msg = (
         f"✅ <b>Scan Complete!</b>\n\n"
         f"📊 Tickers scanned: <code>{total_tickers}</code>\n"
         f"🚨 Signals found: <code>{total_signals}</code>\n"
     )
-    return send_telegram_alert(msg)
+    return await send_telegram_alert(msg)
+
+
+async def send_top_signals_summary(top_signals: list[dict]):
+    """Send a consolidated Top 5 summary alert."""
+    if not top_signals:
+        return await send_telegram_alert("✅ <b>Scan Complete:</b> No high-confidence signals found this hour.")
+
+    count = len(top_signals)
+    header = f"🏆 <b>Top {count} Market Setups</b>\n<i>Processed from the entire market.</i>\n\n"
+    
+    body = ""
+    for i, sig in enumerate(top_signals):
+        ticker = sig.get("symbol", sig.get("ticker", "?"))
+        score = sig.get("confidence_score", 0)
+        stype = sig.get("signal_type", sig.get("type", "unknown")).replace("_", " ").title()
+        tf = sig.get("timeframe", "?")
+        
+        # Extract trade setup
+        entry = sig.get("entry")
+        sl = sig.get("stop_loss")
+        tp1 = sig.get("target_1")
+        tp2 = sig.get("target_2")
+        rr = sig.get("risk_reward_1", 0)
+        
+        body += (
+            f"{i+1}. <b>{ticker}</b> ({stype} @ {tf})\n"
+            f"🎯 Score: <code>{score:.1%}</code> | RR: <code>{rr}</code>\n"
+            f"📥 Buy Area: <code>{entry}</code>\n"
+            f"🛡 SL: <code>{sl}</code> | 🚀 TP1: <code>{tp1}</code> | 🔥 TP2: <code>{tp2}</code>\n\n"
+        )
+
+    footer = f"🔗 View details at <a href='http://localhost:8000'>Dashboard</a>"
+    
+    return await send_telegram_alert(header + body + footer)

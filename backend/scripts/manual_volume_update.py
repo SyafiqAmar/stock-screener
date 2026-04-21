@@ -4,12 +4,13 @@ Useful for first-time initialization so the screener isn't empty.
 """
 import sys
 import logging
-import time
+import asyncio
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from backend.storage.database import StockDatabase
 from backend.scraper.volume_engine import update_volume_batch
@@ -22,38 +23,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def update_all_volumes():
+async def update_all_volumes():
     db = StockDatabase()
-    db.initialize()
+    # No need to call initialize() as update_volume_batch handles it or uses existing engine
     
-    # Get all active tickers that have 0 volume (not yet updated)
-    conn = db._connect()
-    rows = conn.execute("SELECT COUNT(*) FROM tickers WHERE volume = 0 AND is_active = 1").fetchone()
-    total_to_update = rows[0]
-    
-    if total_to_update == 0:
-        logger.info("All tickers already have volume data. To force update, use the scheduler.")
-        db.close()
-        return
-
-    logger.info(f"🚀 Starting manual volume update for {total_to_update} tickers...")
+    logger.info("🚀 Starting manual volume update process...")
     
     batch_size = 50
-    batches = (total_to_update // batch_size) + 1
+    # We will keep updating in batches until no more "old" tickers are found
+    # Or just run it a certain number of times for safety.
     
-    for i in range(batches):
-        logger.info(f"Processing batch {i+1}/{batches}...")
+    # Ideally, we'd check count, but get_next_tickers_for_volume_update 
+    # will naturally cycle through them.
+    
+    for i in range(20):  # Process up to 1000 tickers (20 batches * 50)
+        logger.info(f"Processing batch {i+1}...")
         try:
-            update_volume_batch(limit=batch_size)
+            await update_volume_batch(limit=batch_size)
         except Exception as e:
             logger.error(f"Error in batch {i+1}: {e}")
         
-        # Small sleep between batches to be polite to Yahoo Finance
-        if i < batches - 1:
-            time.sleep(2)
+        # Small delay between batches to be polite to Yahoo Finance
+        await asyncio.sleep(1)
 
-    db.close()
-    logger.info("✅ All tickers updated! Refresh your browser to see the results.")
+    await db.close()
+    logger.info("✅ Batch update finished. Refresh your browser to see the results.")
 
 if __name__ == "__main__":
-    update_all_volumes()
+    asyncio.run(update_all_volumes())

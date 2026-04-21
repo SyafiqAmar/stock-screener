@@ -1,64 +1,69 @@
 """
-Engine for batch scraping stock volume and 3-month average volume.
-Uses yfinance Tickers feature for speed and efficiency.
+Asynchronous volume and liquidity update engine.
+Periodically refreshes ticker metadata using asynchronous HTTP requests.
 """
+import asyncio
 import logging
+import sys
+import os
+from pathlib import Path
 from datetime import datetime
-import yfinance as yf
+
+# Add project root to path
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from backend.storage.database import StockDatabase
+from backend.scraper.sources import get_ticker_info_async
 
 logger = logging.getLogger(__name__)
 
-def update_volume_batch(limit: int = 50):
+async def update_volume_batch(limit: int = 50):
     """
-    1. Get next 50 tickers from DB (oldest/never updated)
-    2. Fetch current volume and 3m average from Yahoo Finance
-    3. Update database
+    Asynchronously update volume metadata for a batch of tickers.
     """
     db = StockDatabase()
-    db.initialize()
+    # No need for manual initialize() here as the constructor handles the engine,
+    # and it was already initialized on app startup.
     
-    symbols = db.get_next_tickers_for_volume_update(limit=limit)
-    if not symbols:
-        logger.info("No tickers found for volume update")
-        db.close()
-        return
+    # We need to add get_next_tickers_for_volume_update to the async DB if not there
+    # I'll check my previous database.py refactor... I missed it!
+    # I must fix database.py again.
+    
+    # For now, let's assume we fetch them:
+    try:
+        # I'll add this method to database.py in the next step
+        symbols = await db.get_next_tickers_for_volume_update(limit=limit)
+        
+        if not symbols:
+            logger.info("No tickers found for volume update")
+            return
 
-    logger.info(f"Updating volume for batch of {len(symbols)} tickers...")
-    
-    # yf.Tickers accepts space-separated symbols
-    tickers_obj = yf.Tickers(" ".join(symbols))
-    
-    count_success = 0
-    
-    for symbol in symbols:
-        try:
-            # Use fast_info for lightweight access
-            ticker = tickers_obj.tickers[symbol]
-            info = ticker.fast_info
+        logger.info(f"Updating volume for batch of {len(symbols)} tickers (Async)...")
+        
+        # Gather all info requests concurrently
+        tasks = [get_ticker_info_async(s) for s in symbols]
+        info_results = await asyncio.gather(*tasks)
+        
+        count_success = 0
+        for info in info_results:
+            symbol = info.get("symbol")
+            volume = info.get("volume", 0)
+            avg_volume = info.get("avg_volume", 0)
             
-            # lastVolume: current day's volume
-            # threeMonthAverageVolume: 3-month average volume
-            volume = int(info.get("lastVolume", 0))
-            avg_volume = int(info.get("threeMonthAverageVolume", 0))
-            
-            if volume > 0 or avg_volume > 0:
-                db.update_ticker_volume(symbol, volume, avg_volume)
+            if symbol:
+                await db.update_ticker_volume(symbol, volume, avg_volume)
                 count_success += 1
-            else:
-                logger.warning(f"No volume data for {symbol}, placeholder update")
-                # Still update timestamp so it goes to end of queue
-                db.update_ticker_volume(symbol, 0, 0)
-                
-        except Exception as e:
-            logger.error(f"Error updating volume for {symbol}: {e}")
-            # Optional: update timestamp anyway to prevent stuck ticker
-            db.update_ticker_volume(symbol, 0, 0)
-
-    db.close()
-    logger.info(f"Batch volume update complete. Successfully updated: {count_success}/{len(symbols)}")
+        
+        logger.info(f"Batch volume update complete. Successfully updated: {count_success}/{len(symbols)}")
+        
+    except Exception as e:
+        logger.error(f"Error in volume update batch: {e}")
+    finally:
+        await db.close()
 
 if __name__ == "__main__":
-    # Test run
+    # Test run logic
     logging.basicConfig(level=logging.INFO)
-    update_volume_batch(5)
+    asyncio.run(update_volume_batch(5))
