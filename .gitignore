@@ -1,12 +1,9 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-.venv/
 build/
 develop-eggs/
 dist/
@@ -22,30 +19,57 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Database/Storage
-*.sqlite
-*.db
-backend/data/*.db
-data/csv/
-data/parquet/
-
-# Environment/Secrets
+# ── Environments & Secrets ───────────────────────────────────────────
 .env
-.venv
-env/
+.env.*
+!.env.example
 venv/
-instance/
+.venv/
+env/
+ENV/
+bin/
+include/
+lib/
+share/
+pyvenv.cfg
+pip-selfcheck.json
+
+# ── Databases & Storage ──────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*.db
+data/*.db
+data/stock_screener.db
+data/excel/
+data/parquet/
+data/csv/
+data/*.xlsx
+!data/list-company.xlsx
+
+# ── IDEs & OS ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Tools & Testing ──────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
+.mypy_cache/
+.tox/
+.nox/
 
-# Docker
-.dockerignore
-
-# Project Specific
+# ── Project Specific ─────────────────────────────────────────────────
 audit.txt
 frontend_audit.txt
 backend/scratch/
-data/*.xlsx
-!data/list-company.xlsx
+logs/
+*.log
+data/*.log

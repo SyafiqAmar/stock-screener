@@ -86,6 +86,31 @@ def analyze_accumulation_distribution(df: pd.DataFrame) -> dict | None:
     result["phase"] = _determine_phase(result)
     result["phase_confidence"] = _phase_confidence(result)
 
+    # 6. Advanced Metrics (Accumulation Value and Avg Price)
+    # Estimate Money Flow over the trend period
+    recent_df = df.tail(ACCUM_TREND_PERIOD).copy()
+    if not recent_df.empty and "close" in recent_df.columns and "volume" in recent_df.columns:
+        # Typical VWAP logic for avg price
+        total_vol = recent_df["volume"].sum()
+        if total_vol > 0:
+            result["avg_price_accum"] = float((recent_df["close"] * recent_df["volume"]).sum() / total_vol)
+        else:
+            result["avg_price_accum"] = float(recent_df["close"].iloc[-1])
+
+        # Heuristic for Money Flow: (2*Close - High - Low) / (High - Low) * Volume * Price
+        # This approximates intraday accumulation/distribution when broker data is missing
+        if "high" in recent_df.columns and "low" in recent_df.columns:
+            # Avoid division by zero
+            denom = (recent_df["high"] - recent_df["low"]).replace(0, 1e-9)
+            mf_multiplier = (2 * recent_df["close"] - recent_df["high"] - recent_df["low"]) / denom
+            mf_volume = mf_multiplier * recent_df["volume"]
+            result["accum_value"] = int((mf_volume * recent_df["close"]).sum())
+        else:
+            result["accum_value"] = 0
+    else:
+        result["avg_price_accum"] = 0
+        result["accum_value"] = 0
+
     return result
 
 

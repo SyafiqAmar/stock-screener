@@ -5,10 +5,25 @@ Primary: yfinance library for robust OHLVC downloads with session management.
 import logging
 import pandas as pd
 import asyncio
+import requests
 import yfinance as yf
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Global session no longer needed for yfinance 1.3.0+
+# _session = requests.Session()
+
+# Clear yfinance cache on start to prevent persistent session blocks
+try:
+    import shutil
+    import os
+    cache_path = os.path.expanduser('~/.cache/py-yfinance')
+    if os.path.exists(cache_path):
+        shutil.rmtree(cache_path)
+        logger.info(f"🗑️ Cleared yfinance cache at {cache_path}")
+except Exception as e:
+    logger.debug(f"Could not clear yf cache: {e}")
 
 async def download_ohlcv_async(ticker: str, timeframe: str, period: str) -> pd.DataFrame | None:
     """
@@ -34,7 +49,8 @@ async def download_ohlcv_async(ticker: str, timeframe: str, period: str) -> pd.D
             period=period,
             interval=interval,
             progress=False,
-            auto_adjust=True
+            auto_adjust=True,
+            # session=_session  # yfinance 1.3.0+ handles its own curl_cffi session
         )
         
         if df is None or df.empty:

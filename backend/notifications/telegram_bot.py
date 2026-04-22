@@ -75,7 +75,7 @@ async def send_scan_complete_alert(total_tickers: int, total_signals: int):
 
 
 async def send_top_signals_summary(top_signals: list[dict]):
-    """Send a consolidated Top 5 summary alert."""
+    """Send a consolidated Top 10 summary alert."""
     if not top_signals:
         return await send_telegram_alert("✅ <b>Scan Complete:</b> No high-confidence signals found this hour.")
 

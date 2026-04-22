@@ -57,6 +57,50 @@ class StockDatabase:
         """Dispose of the engine."""
         await self.engine.dispose()
 
+    # ── Scrape Logging ────────────────────────────────────────────────────
+    
+    async def log_scrape_event(self, symbol: str, timeframe: str, status: str, error: str = None):
+        """Log a scraping event (Success/Failed) to the database."""
+        try:
+            async with self.async_session() as session:
+                from backend.storage.models import ScrapeLog
+                log = ScrapeLog(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    status=status,
+                    error_message=error
+                )
+                session.add(log)
+                await session.commit()
+        except Exception as e:
+            logger.error(f"Failed to save scrape log for {symbol}: {e}")
+
+    async def get_scrape_logs(self, limit: int = 100, symbol: str = None):
+        """Fetch recent scrape logs."""
+        try:
+            async with self.async_session() as session:
+                from backend.storage.models import ScrapeLog
+                from sqlalchemy import select, desc
+                
+                query = select(ScrapeLog).order_by(desc(ScrapeLog.scraped_at)).limit(limit)
+                if symbol:
+                    query = query.where(ScrapeLog.symbol == symbol)
+                    
+                result = await session.execute(query)
+                logs = result.scalars().all()
+                return [
+                    {
+                        "symbol": l.symbol,
+                        "timeframe": l.timeframe,
+                        "status": l.status,
+                        "error": l.error_message,
+                        "time": l.scraped_at.isoformat()
+                    } for l in logs
+                ]
+        except Exception as e:
+            logger.error(f"Error fetching scrape logs: {e}")
+            return []
+
     # ── Tickers ──────────────────────────────────────────────────────────
 
     async def get_or_create_ticker(self, symbol: str, name: str = "", sector: str = "") -> int:
@@ -407,15 +451,18 @@ class StockDatabase:
         async with self.async_session() as session:
             last_date = pd.to_datetime(df.index[-1])
             stmt = text("""
-                INSERT INTO accum_dist (ticker_id, date, phase, adl_value, obv_value, mfi_value, volume_ratio)
-                VALUES (:tid, :date, :phase, :adl, :obv, :mfi, :v_ratio)
+                INSERT INTO accum_dist (ticker_id, date, phase, adl_value, obv_value, mfi_value, volume_ratio, accum_value, avg_price_accum)
+                VALUES (:tid, :date, :phase, :adl, :obv, :mfi, :v_ratio, :a_val, :avg_p)
                 ON CONFLICT(ticker_id, date) DO UPDATE SET
-                phase=EXCLUDED.phase, adl_value=EXCLUDED.adl_value, obv_value=EXCLUDED.obv_value
+                phase=EXCLUDED.phase, adl_value=EXCLUDED.adl_value, obv_value=EXCLUDED.obv_value,
+                accum_value=EXCLUDED.accum_value, avg_price_accum=EXCLUDED.avg_price_accum
             """)
             await session.execute(stmt, {
                 "tid": ticker_id, "date": last_date, "phase": result.get("phase"),
                 "adl": result.get("adl_latest"), "obv": result.get("obv_latest"),
-                "mfi": result.get("mfi_latest"), "v_ratio": result.get("volume_ratio")
+                "mfi": result.get("mfi_latest"), "v_ratio": result.get("volume_ratio"),
+                "a_val": result.get("accum_value", 0),
+                "avg_p": result.get("avg_price_accum", 0)
             })
             await session.commit()
 

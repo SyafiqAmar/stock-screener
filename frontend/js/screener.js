@@ -114,6 +114,97 @@ const Screener = {
         this.updateStats();
     },
 
+    /** New method for Bandar Accumulation View */
+    async refreshAccumulation() {
+        const q = new URLSearchParams({ 
+            signal_type: 'accumulation',
+            limit: 100,
+            min_confidence: 0.4
+        });
+
+        const response = await Utils.apiRequest(`/api/screener/results?${q}`);
+        if (!response?.results) return;
+
+        // Note: For this view, we'll render specifically to the accumulation-table
+        this.renderAccumulationTable(response.results);
+    },
+
+    renderAccumulationTable(data) {
+        const table = document.getElementById('accumulation-table');
+        if (!table) return;
+
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        // Optimization: Use DocumentFragment
+        const fragment = document.createDocumentFragment();
+        tbody.innerHTML = '';
+
+        if (!data.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-dim" style="padding:24px">Belum ada saham dalam fase akumulasi kuat terdeteksi.</td></tr>';
+            return;
+        }
+
+        data.forEach((row, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'animate-up';
+            tr.style.animationDelay = `${idx * 0.05}s`;
+
+            const meta = row.additional_data || {};
+            const accumVal = meta.accum_value || 0;
+            const avgPrice = meta.avg_price_accum || 0;
+            const volRatio = meta.volume_ratio || 1.0;
+            const score = Math.round((row.confidence_score || 0) * 100);
+            
+            // Format trends icons
+            const adlIcon = meta.adl_trend === 'rising' ? '↑' : (meta.adl_trend === 'falling' ? '↓' : '→');
+            const obvIcon = meta.obv_trend === 'rising' ? '↑' : (meta.obv_trend === 'falling' ? '↓' : '→');
+
+            tr.innerHTML = `
+                <td>
+                    <div class="ticker-cell">
+                        <b class="ticker-symbol">${row.symbol}</b>
+                        <span class="ticker-name text-dim">${row.ticker_name || '—'}</span>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge-signal accum">${Utils.formatSignalType(row.signal_type)}</span>
+                </td>
+                <td class="price-cell">${Utils.formatPrice(avgPrice)}</td>
+                <td class="price-cell ${accumVal >= 0 ? 'text-green' : 'text-red'}">
+                    ${accumVal >= 0 ? '+' : ''}${Utils.formatNumber(accumVal)}
+                </td>
+                <td>
+                    <span class="${volRatio > 1.5 ? 'text-green' : ''}">${volRatio.toFixed(2)}x</span>
+                </td>
+                <td>
+                    <div class="score-pill">
+                        <div class="score-bar" style="width:${score}%; background: var(--accent);"></div>
+                        <span>${score}%</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="trend-group">
+                        <span title="ADL ${meta.adl_trend}">ADL ${adlIcon}</span>
+                        <span title="OBV ${meta.obv_trend}">OBV ${obvIcon}</span>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn-view-chart btn-icon-small glass" data-symbol="${row.symbol}" data-tf="${row.timeframe}">
+                        <i class="fas fa-chart-line"></i>
+                    </button>
+                </td>
+            `;
+
+            tr.querySelector('.btn-view-chart').addEventListener('click', () => {
+                window.location.hash = '#analysis';
+                App.loadTicker(row.symbol, row.timeframe);
+            });
+
+            tbody.appendChild(tr);
+        });
+    },
+
     /** Fetch /api/ticker/{symbol} untuk semua ticker yang belum di-cache */
     async _prefetchTradeSetups(data) {
         const symbols = [...new Set(data.map(r => r.symbol))].filter(s => !this.tradeSetupCache[s]);
@@ -193,6 +284,10 @@ const Screener = {
         if (!table) return;
 
         const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        // Optimization: Use DocumentFragment
+        const fragment = document.createDocumentFragment();
         tbody.innerHTML = '';
 
         if (!data.length) {

@@ -63,6 +63,10 @@ const App = {
             Screener.refresh();
         } else if (viewId === 'screener') {
             Screener.refresh();
+        } else if (viewId === 'accumulation') {
+            Screener.refreshAccumulation();
+        } else if (viewId === 'logs') {
+            Logger.refresh();
         }
     },
 

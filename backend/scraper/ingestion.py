@@ -43,20 +43,24 @@ async def scan_single_ticker(
         timeframes = TIMEFRAMES
 
     all_signals = []
+    success_count = 0
 
     try:
+        ticker_id = await db.get_or_create_ticker(ticker)
         for tf in timeframes:
-            period = TIMEFRAME_PERIODS.get(tf, "1y")
+            period = TIMEFRAME_PERIODS.get(tf, "2y")
             logger.info(f"Scanning {ticker} @ {tf}...")
 
             # 1. Async Download
             df = await download_ohlcv_async(ticker, tf, period)
             if df is None or len(df) < 30:
                 logger.warning(f"Insufficient data for {ticker} @ {tf}, skipping")
+                await db.log_scrape_event(ticker, tf, "failed", "Insufficient data or yfinance error")
                 continue
 
+            success_count += 1
+
             # 2. Async Store OHLCV
-            ticker_id = await db.get_or_create_ticker(ticker)
             await db.upsert_ohlcv(ticker_id, tf, df)
 
             # Update ticker volume summary if daily timeframe
@@ -136,15 +140,22 @@ async def scan_single_ticker(
                 if s.get("confidence_score", 0) >= MIN_CONFIDENCE_TO_STORE
             ]
             all_signals.extend(signals_for_tf)
+            
+            # 5.5 Log Success
+            await db.log_scrape_event(ticker, tf, "success")
 
     except Exception as e:
-        logger.error(f"Async scan failed for {ticker}: {e}")
+        error_msg = str(e)
+        logger.error(f"Async scan failed for {ticker}: {error_msg}")
+        # Log generic failure for the ticker if anything crashed the whole process
+        await db.log_scrape_event(ticker, "all", "failed", error_msg)
+        return {"status": "failed", "error": error_msg}
 
     # 6. Rank & Store Champions
     if all_signals:
         await rank_and_store_signals(db, ticker, all_signals)
     
-    return all_signals
+    return {"status": "success"}
 
 async def run_full_scan_async(
     category: str = "lq45",
@@ -168,11 +179,45 @@ async def run_full_scan_async(
     # Use a Semaphore to avoid overwhelming Yahoo or DB
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
     
+    consecutive_errors = 0
+    scan_aborted = False
+    MAX_ERRORS_BEFORE_COOLING = 3
+    MAX_ERRORS_BEFORE_ABORT = 5
+    
     async def sem_scan(ticker):
+        nonlocal consecutive_errors, scan_aborted
+        if scan_aborted:
+            return ticker, {"status": "aborted"}
+
         async with semaphore:
+            # ── Incremental Check ──────────────────────────────
+            last_date = await db.get_last_ohlcv_date(ticker, "1d")
+            if last_date:
+                # If last update is within 4 hours, skip
+                if (datetime.utcnow() - last_date).total_seconds() < 4 * 3600:
+                    return ticker, {"status": "skipped", "reason": "fresh"}
+
+            # ── Error Cooling ──────────────────────────────────
+            if consecutive_errors >= MAX_ERRORS_BEFORE_COOLING:
+                logger.warning(f"❄️ Cooling down for 2 minutes due to consecutive errors (Current: {consecutive_errors})...")
+                await asyncio.sleep(120)
+                # We don't reset counter here yet, we wait for a success
+
             result = await scan_single_ticker(ticker, db, timeframes, silent=(category == "all_idx"))
-            # Small delay between tickers to be polite
-            await asyncio.sleep(DOWNLOAD_DELAY_SECONDS)
+            
+            # Update error counter
+            if not result or result.get("status") == "failed":
+                consecutive_errors += 1
+                if consecutive_errors >= MAX_ERRORS_BEFORE_ABORT:
+                    scan_aborted = True
+                    logger.error(f"🛑 CRITICAL: {consecutive_errors} consecutive errors detected. Aborting entire scan to prevent permanent IP blacklist.")
+            else:
+                consecutive_errors = 0
+
+            # Add random jitter to delay
+            import random
+            jitter = DOWNLOAD_DELAY_SECONDS * random.uniform(0.7, 1.3)
+            await asyncio.sleep(jitter)
             return ticker, result
 
     tasks = [sem_scan(ticker) for ticker in tickers]

@@ -43,6 +43,14 @@
                     <i class="fas fa-microchip"></i>
                     <span>Algo Analysis</span>
                 </a>
+                <a href="#accumulation" class="menu-item" id="menu-accumulation">
+                    <i class="fas fa-user-secret"></i>
+                    <span>Bandar Accum</span>
+                </a>
+                <a href="#logs" class="menu-item" id="menu-logs">
+                    <i class="fas fa-terminal"></i>
+                    <span>Scraper Logs</span>
+                </a>
                 <a href="#watchlist" class="menu-item" id="menu-watchlist">
                     <i class="fas fa-star"></i>
                     <span>Watchlist</span>
@@ -217,6 +225,67 @@
                 </div>
             </div>
 
+            <!-- Bandar Accumulation View -->
+            <div id="view-accumulation" class="view">
+                <div class="card glass screener-table-card animate-up">
+                    <div class="card-header">
+                        <h2><i class="fas fa-user-secret"></i> Bandar Accumulation Monitor</h2>
+                        <div class="header-actions">
+                            <span class="text-dim">Real-time Big Money Flow Estimation</span>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="accumulation-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Phase</th>
+                                    <th>Avg Price</th>
+                                    <th>Accum Value</th>
+                                    <th>Vol Ratio</th>
+                                    <th>Confidence</th>
+                                    <th>Trend</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scraper Logs View -->
+            <div id="view-logs" class="view">
+                <div class="card glass screener-table-card animate-up">
+                    <div class="card-header">
+                        <h2><i class="fas fa-terminal"></i> Scraper Activity History</h2>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary btn-icon-small" id="btn-refresh-logs" title="Refresh Logs">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Ticker</th>
+                                    <th>TF</th>
+                                    <th>Status</th>
+                                    <th>Detail / Error</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Analysis/Chart View -->
             <div id="view-analysis" class="view">
                 <div class="analysis-layout">
@@ -333,6 +402,7 @@
     <script src="/static/js/websocket.js"></script>
     <script src="/static/js/screener.js"></script>
     <script src="/static/js/chart.js"></script>
+    <script src="/static/js/logs.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 

@@ -62,7 +62,7 @@ async def _run_daily_scan():
         _scan_status["last_run"] = datetime.now().isoformat()
 
 async def _run_hourly_scan():
-    """Job: Run hourly scan for the entire IDX market and send Top 5 summary."""
+    """Job: Run hourly scan for the entire IDX market and send Top 10 summary."""
     if _scan_status["is_running"]:
         logger.warning("Scan already running, skipping scheduled hourly job")
         return
@@ -79,11 +79,11 @@ async def _run_hourly_scan():
             progress_callback=_update_progress,
         )
         
-        # After scan finishes, fetch the Top 5 ranked signals from DB
+        # After scan finishes, fetch the Top 10 ranked signals from DB
         # Only include Bullish Divergence, Hidden Bullish, and ABC Correction for Telegram
         top_signals = await get_ranked_results(
             db, 
-            limit=5, 
+            limit=10, 
             min_confidence=0.6,
             signal_types=["bullish_divergence", "hidden_bullish_divergence", "abc_correction"]
         )
@@ -117,11 +117,11 @@ async def run_manual_scan(category: str = "lq45", timeframes: list[str] | None =
             progress_callback=_update_progress,
         )
         
-        # After scan finishes, fetch the Top 5 ranked signals from DB
+        # After scan finishes, fetch the Top 10 ranked signals from DB
         # Only include the specific types the user requested for Telegram
         top_signals = await get_ranked_results(
             db, 
-            limit=5, 
+            limit=10, 
             min_confidence=0.6,
             signal_types=["bullish_divergence", "hidden_bullish_divergence", "abc_correction"]
         )

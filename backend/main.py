@@ -20,6 +20,7 @@ import uvicorn
 from backend.api.routes_screener import router as screener_router
 from backend.api.routes_chart import router as chart_router
 from backend.api.routes_ticker import router as ticker_router
+from backend.api.routes_logs import router as log_router
 from backend.api.websocket_handler import websocket_endpoint
 from backend.scraper.scheduler import start_scheduler, stop_scheduler
 from backend.storage.database import StockDatabase
@@ -56,6 +57,7 @@ app.add_middleware(
 app.include_router(screener_router, prefix="/api/screener", tags=["Screener"])
 app.include_router(chart_router, prefix="/api/chart", tags=["Chart"])
 app.include_router(ticker_router, prefix="/api/ticker", tags=["Ticker"])
+app.include_router(log_router, prefix="/api/logs", tags=["Logs"])
 
 # ── WebSocket ──────────────────────────────────────────
 app.websocket("/ws/live")(websocket_endpoint)

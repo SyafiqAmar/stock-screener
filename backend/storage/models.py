@@ -45,7 +45,7 @@ class OHLCV(Base):
 
     __table_args__ = (
         UniqueConstraint("ticker_id", "timeframe", "date", name="uix_ohlcv_lookup"),
-        Index("idx_ohlcv_ticker_tf", "ticker_id", "timeframe"),
+        Index("idx_ohlcv_query", "ticker_id", "timeframe", "date"),
     )
 
 class Indicator(Base):
@@ -71,6 +71,7 @@ class Indicator(Base):
 
     __table_args__ = (
         UniqueConstraint("ticker_id", "timeframe", "date", name="uix_indicators_lookup"),
+        Index("idx_indicators_query", "ticker_id", "timeframe", "date"),
     )
 
 class Signal(Base):
@@ -97,7 +98,8 @@ class Signal(Base):
 
     __table_args__ = (
         UniqueConstraint("symbol", "timeframe", "signal_type", "detected_at", name="uix_signals_upsert"),
-        Index("idx_active_signals", "is_active", "signal_type", "detected_at"),
+        Index("idx_active_signals_query", "is_active", "symbol", "detected_at"),
+        Index("idx_signals_type_score", "signal_type", "is_active", "confidence_score"),
     )
 
 class AccumDist(Base):
@@ -111,9 +113,26 @@ class AccumDist(Base):
     obv_value = Column(Float)
     mfi_value = Column(Float)
     volume_ratio = Column(Float)
+    accum_value = Column(BigInteger, default=0) # Total estimated money flow
+    avg_price_accum = Column(Float, default=0)    # Estimated average price
 
     ticker = relationship("Ticker", back_populates="accum_dist")
 
     __table_args__ = (
         UniqueConstraint("ticker_id", "date", name="uix_accum_dist_lookup"),
+    )
+
+class ScrapeLog(Base):
+    __tablename__ = "scrape_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String, nullable=False, index=True)
+    timeframe = Column(String, nullable=False)
+    status = Column(String, nullable=False) # success, failed
+    error_message = Column(Text)
+    scraped_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_scrape_logs_symbol", "symbol"),
+        Index("idx_scrape_logs_status", "status"),
     )
